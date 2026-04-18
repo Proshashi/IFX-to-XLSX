@@ -323,7 +323,10 @@ class App:
     def __init__(self, root: Tk):
         self.root = root
         root.title("IFX to Excel Converter")
-        root.geometry("680x520")
+        w, h = 680, 520
+        x = (root.winfo_screenwidth() - w) // 2
+        y = (root.winfo_screenheight() - h) // 2
+        root.geometry(f"{w}x{h}+{x}+{y}")
         root.minsize(600, 460)
 
         self.files = []
@@ -554,6 +557,7 @@ class App:
 
 def main():
     root = Tk()
+    root.withdraw()  # hide until geometry + theme are applied (prevents flash)
     try:
         style = ttk.Style()
         if "aqua" in style.theme_names():
@@ -561,6 +565,14 @@ def main():
     except Exception:
         pass
     App(root)
+    root.deiconify()
+    # Force the window to the foreground on launch — without this, Tk
+    # apps started from Terminal often open behind the active window
+    # because the Python process isn't a proper macOS GUI app.
+    root.lift()
+    root.attributes("-topmost", True)
+    root.after_idle(root.attributes, "-topmost", False)
+    root.focus_force()
     root.mainloop()
 
 
