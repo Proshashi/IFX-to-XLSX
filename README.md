@@ -94,7 +94,7 @@ python3 ~/Desktop/ifx_to_xlsx_gui.py
 
 ### Optional: double-clickable launcher
 
-Make a file called `Convert IFX.command` next to the script containing:
+Make a file called `Convert_IFX.command` next to the script containing:
 
 ```bash
 #!/bin/bash
@@ -105,7 +105,7 @@ python3 ifx_to_xlsx_gui.py
 Then one-time in Terminal:
 
 ```bash
-chmod +x "~/Desktop/Convert IFX.command"
+chmod +x ~/Desktop/Convert_IFX.command
 ```
 
 Now you can double-click it from Finder.
@@ -134,9 +134,14 @@ The result is `dist/IFX to Excel.app`. Drag it to `/Applications`.
 1. Click **Choose .ifx files…** — pick one or many
 2. Select the output format (MB compatible / Comprehensive)
 3. Pick a **Save to** folder (defaults to Desktop)
-4. Click **Convert**
+4. (Single file only) edit the **Output name** if you want something
+   other than the source filename — `.xlsx` is added automatically
+5. Click **Convert**
 
-Each `foo.ifx` becomes `foo.xlsx` in the chosen folder.
+Each `foo.ifx` becomes `foo.xlsx` (or your chosen name) in the chosen
+folder. If a file with that name already exists you'll get a confirm
+dialog — choose **No** to skip it and keep going with the rest of the
+batch.
 
 ---
 

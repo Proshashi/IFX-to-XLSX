@@ -300,9 +300,9 @@ def write_comprehensive(metadata, columns, rows, out_path: Path):
     wb.save(out_path)
 
 
-def convert_file(ifx_path: Path, out_dir: Path, mode: str) -> Path:
+def convert_file(ifx_path: Path, out_path: Path, mode: str) -> Path:
+    """Convert a single .ifx file. out_path is the destination .xlsx."""
     metadata, columns, rows = parse_ifx(ifx_path)
-    out_path = out_dir / f"{ifx_path.stem}.xlsx"
     if mode == "mb":
         try:
             write_mb_format(metadata, columns, rows, out_path)
@@ -328,6 +328,7 @@ class App:
 
         self.files = []
         self.out_dir = StringVar(value=str(Path.home() / "Desktop"))
+        self.out_name = StringVar(value="")
         self.mode = StringVar(value="mb")
 
         main = ttk.Frame(root, padding=12)
@@ -397,17 +398,28 @@ class App:
             out_row, text="Browse…", command=self.choose_out_dir
         ).grid(row=0, column=2)
 
+        name_row = ttk.Frame(main)
+        name_row.grid(row=6, column=0, sticky=(E, W), pady=4)
+        name_row.columnconfigure(1, weight=1)
+        ttk.Label(name_row, text="Output name:").grid(row=0, column=0, sticky=W)
+        self.name_entry = ttk.Entry(
+            name_row, textvariable=self.out_name, state="disabled"
+        )
+        self.name_entry.grid(row=0, column=1, sticky=(E, W), padx=6)
+        self.name_hint = ttk.Label(name_row, text=".xlsx", foreground="#888")
+        self.name_hint.grid(row=0, column=2, sticky=W)
+
         self.progress = ttk.Progressbar(main, mode="determinate")
-        self.progress.grid(row=6, column=0, sticky=(E, W), pady=(10, 4))
+        self.progress.grid(row=7, column=0, sticky=(E, W), pady=(10, 4))
         self.status = StringVar(value="Ready.")
         ttk.Label(main, textvariable=self.status, foreground="#444").grid(
-            row=7, column=0, sticky=W
+            row=8, column=0, sticky=W
         )
 
         self.convert_btn = ttk.Button(
             main, text="Convert", command=self.start_convert
         )
-        self.convert_btn.grid(row=8, column=0, sticky=E, pady=(10, 0))
+        self.convert_btn.grid(row=9, column=0, sticky=E, pady=(10, 0))
 
     def choose_files(self):
         paths = filedialog.askopenfilenames(
@@ -430,6 +442,16 @@ class App:
         self.count_label.config(
             text=f"{n} file{'s' if n != 1 else ''} selected" if n else "No files selected"
         )
+        if n == 1:
+            self.name_entry.config(state="normal")
+            self.out_name.set(self.files[0].stem)
+            self.name_hint.config(text=".xlsx", foreground="#888")
+        else:
+            self.out_name.set("")
+            self.name_entry.config(state="disabled")
+            self.name_hint.config(
+                text="(source filenames used for batch)", foreground="#888"
+            )
 
     def choose_out_dir(self):
         d = filedialog.askdirectory(
@@ -437,6 +459,33 @@ class App:
         )
         if d:
             self.out_dir.set(d)
+
+    def _on_ui(self, fn, *args, **kwargs):
+        """Run fn on the Tk main thread; block worker until it returns."""
+        result = {}
+        done = threading.Event()
+
+        def run():
+            try:
+                result["value"] = fn(*args, **kwargs)
+            except Exception as e:
+                result["exc"] = e
+            finally:
+                done.set()
+
+        self.root.after(0, run)
+        done.wait()
+        if "exc" in result:
+            raise result["exc"]
+        return result.get("value")
+
+    def _resolve_out_path(self, ifx_path: Path, out_dir: Path) -> Path:
+        """Pick the destination filename — custom name only if 1 file, else source stem."""
+        custom = self.out_name.get().strip() if len(self.files) == 1 else ""
+        stem = custom or ifx_path.stem
+        if stem.lower().endswith(".xlsx"):
+            stem = stem[:-5]
+        return out_dir / f"{stem}.xlsx"
 
     def start_convert(self):
         if not self.files:
@@ -456,11 +505,23 @@ class App:
         ).start()
 
     def _run_conversion(self, out_dir: Path, mode: str):
-        done, failed = [], []
+        done, failed, skipped = [], [], []
         for i, f in enumerate(self.files, 1):
+            out_path = self._resolve_out_path(f, out_dir)
+            if out_path.exists():
+                proceed = self._on_ui(
+                    messagebox.askyesno,
+                    "File exists",
+                    f"{out_path.name} already exists in:\n{out_dir}\n\nOverwrite?",
+                )
+                if not proceed:
+                    skipped.append(out_path.name)
+                    self.progress.config(value=i)
+                    self.root.update_idletasks()
+                    continue
             self.status.set(f"Converting {f.name} ({i}/{len(self.files)})…")
             try:
-                out = convert_file(f, out_dir, mode)
+                out = convert_file(f, out_path, mode)
                 done.append(out)
             except Exception as e:
                 failed.append((f.name, str(e)))
@@ -468,16 +529,30 @@ class App:
             self.root.update_idletasks()
 
         self.convert_btn.config(state="normal")
+        parts = [f"Converted {len(done)} file(s)."]
+        if skipped:
+            parts.append("\nSkipped (already existed):\n" + "\n".join(f"• {n}" for n in skipped))
         if failed:
-            msg = f"Converted {len(done)} file(s).\n\nFailed:\n" + "\n".join(
-                f"• {n}: {err}" for n, err in failed
+            parts.append("\nFailed:\n" + "\n".join(f"• {n}: {err}" for n, err in failed))
+        msg = "".join(parts)
+        if failed:
+            self.status.set(
+                f"Done with errors — {len(done)} ok, {len(skipped)} skipped, {len(failed)} failed."
             )
-            self.status.set(f"Done with errors — {len(done)} ok, {len(failed)} failed.")
-            messagebox.showwarning("Completed with errors", msg)
+            self._on_ui(messagebox.showwarning, "Completed with errors", msg)
+        elif skipped:
+            self.status.set(f"Done — {len(done)} ok, {len(skipped)} skipped.")
+            self._on_ui(
+                messagebox.showinfo,
+                "Completed",
+                msg + f"\n\nSaved to:\n{out_dir}",
+            )
         else:
             self.status.set(f"Done. {len(done)} file(s) saved to {out_dir}")
-            messagebox.showinfo(
-                "Success", f"Converted {len(done)} file(s).\n\nSaved to:\n{out_dir}"
+            self._on_ui(
+                messagebox.showinfo,
+                "Success",
+                f"Converted {len(done)} file(s).\n\nSaved to:\n{out_dir}",
             )
 
 

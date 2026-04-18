@@ -10,7 +10,7 @@ For end-user instructions see [README.md](README.md).
 ```
 ifx-to-xlsx/
 ├── ifx_to_xlsx_gui.py     Single-file application (parser + writers + Tk GUI)
-├── Convert IFX.command    Double-clickable launcher for macOS Finder
+├── Convert_IFX.command    Double-clickable launcher for macOS Finder
 ├── README.md              End-user installation and usage guide
 └── TECHNICAL.md           This file
 ```
@@ -236,11 +236,12 @@ Two-column key/value table covering every parsed header field.
 - Always writes Data + Metadata. Sheet order: Spectra (if any), Data,
   Metadata.
 
-### `convert_file` (`ifx_to_xlsx_gui.py:303`)
+### `convert_file(ifx_path, out_path, mode)`
 
-Public façade. Computes `out_dir / f"{stem}.xlsx"`, dispatches on
-`mode in {"mb", "comprehensive"}`, and re-raises `PivotNotPossible`
-with a friendlier message for MB mode. Returns the output path.
+Public façade. Takes the destination `.xlsx` path directly (callers own
+naming and overwrite policy), dispatches on `mode in {"mb",
+"comprehensive"}`, and re-raises `PivotNotPossible` with a friendlier
+message for MB mode. Returns the output path.
 
 ---
 
@@ -278,9 +279,15 @@ A single `ttk.Frame` with an 8-row grid:
 | 3   | Listbox of selected files (expandable)     |
 | 4   | `LabelFrame` with mode radio buttons       |
 | 5   | Output directory row (label / entry / Browse) |
-| 6   | Progress bar                               |
-| 7   | Status label                               |
-| 8   | Convert button                             |
+| 6   | Output filename row (label / entry / `.xlsx` hint) |
+| 7   | Progress bar                               |
+| 8   | Status label                               |
+| 9   | Convert button                             |
+
+The output filename entry is enabled only when exactly one file is
+selected; `refresh_list` populates it with the source file's stem and
+toggles the entry/hint accordingly. For multi-file batches the source
+filenames are used and the entry is disabled.
 
 Resizing: row 3 and column 0 carry `weight=1`, so the file list
 expands to fill available space; everything else stays pinned.
@@ -292,6 +299,7 @@ is silent.
 
 - `self.files: list[Path]` — current selection
 - `self.out_dir: StringVar` — defaults to `~/Desktop`
+- `self.out_name: StringVar` — custom output stem (single-file only)
 - `self.mode: StringVar` — `"mb"` or `"comprehensive"`
 
 ### Threading
@@ -299,15 +307,30 @@ is silent.
 `start_convert` spawns a daemon `threading.Thread` running
 `_run_conversion`. The worker:
 
-1. Iterates `self.files`, calling `convert_file` per item.
-2. Updates `self.status` and `self.progress` after each file.
-3. Re-enables the Convert button and shows a final
-   `messagebox.showinfo` / `showwarning` summary.
+1. Iterates `self.files`. For each, calls `_resolve_out_path` to pick
+   the destination (custom name when one file is selected, source stem
+   otherwise; trailing `.xlsx` stripped if the user typed it).
+2. If the destination already exists, prompts via
+   `messagebox.askyesno`. A "no" response skips that file and records
+   it in the `skipped` list — the batch continues.
+3. Calls `convert_file(ifx_path, out_path, mode)` per item.
+4. Updates `self.status` and `self.progress` after each file.
+5. Re-enables the Convert button and shows a final
+   `messagebox.showinfo` / `showwarning` summary that lists `done`,
+   `skipped`, and `failed` separately.
 
 `self.root.update_idletasks()` is called after each progress tick to
-flush UI changes from the worker thread. This works because Tk on
-macOS tolerates cross-thread `StringVar` writes for trivial updates;
-nothing more complex (e.g. widget creation) crosses the boundary.
+flush trivial widget updates (`StringVar` writes, `progress.config`)
+from the worker — Tk tolerates these on macOS in practice.
+
+**Modal dialogs cannot be invoked from the worker.** Calling
+`messagebox.askyesno` / `showinfo` / `showwarning` directly from a
+background thread raises `_tkinter.TclError` on Python 3.13+ Tk. The
+`App._on_ui(fn, *args, **kwargs)` helper marshals the call onto the
+main thread via `root.after(0, ...)` and blocks the worker on a
+`threading.Event` until the dialog returns (or re-raises any
+exception). All overwrite prompts and end-of-batch summary dialogs go
+through this helper.
 
 Errors during a single file are caught and collected in `failed`; the
 loop continues so one bad file does not abort the batch.
@@ -371,7 +394,11 @@ wrapper can do:
 ```python
 from pathlib import Path
 from ifx_to_xlsx_gui import convert_file
-convert_file(Path("run.ifx"), Path("./out"), mode="comprehensive")
+convert_file(
+    Path("run.ifx"),
+    Path("./out/run.xlsx"),    # destination .xlsx, not a directory
+    mode="comprehensive",
+)
 ```
 
 ---
@@ -382,11 +409,11 @@ convert_file(Path("run.ifx"), Path("./out"), mode="comprehensive")
   files (a few MB) but will not stream multi-GB exports.
 - **Pivot requires exactly 2 axes.** 3D EEM time-courses fall back to
   Data + Metadata only; no faceted / multi-sheet pivot is generated.
-- **No retry / overwrite prompt.** Existing `<stem>.xlsx` files in the
-  output folder are silently overwritten by `wb.save`.
 - **Tk theming.** The "aqua" theme is requested but not required;
   on Linux/Windows the default Tk theme is used and the layout has
   not been visually tuned for those platforms.
-- **Worker thread touches Tk state.** Pragmatically works on macOS but
-  is technically against Tk's threading model. A queue + `after()`
-  poll would be more correct if portability becomes a goal.
+- **Worker thread touches Tk state for cheap updates.** `StringVar`
+  writes and `progress.config` calls are made directly from the worker
+  and rely on Tk's macOS forgiveness. Modal dialogs are correctly
+  marshalled via `_on_ui`; if portability becomes a goal, the
+  status/progress updates should follow the same pattern.
