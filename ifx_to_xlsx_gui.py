@@ -18,7 +18,7 @@ import re
 import threading
 from pathlib import Path
 from tkinter import (
-    END, E, N, S, W,
+    END, E, W,
     StringVar, Tk, filedialog, messagebox, ttk,
 )
 
@@ -335,7 +335,7 @@ class App:
         self.mode = StringVar(value="mb")
 
         main = ttk.Frame(root, padding=12)
-        main.grid(row=0, column=0, sticky=(N, S, E, W))
+        main.grid(row=0, column=0, sticky="nsew")
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
         main.columnconfigure(0, weight=1)
@@ -352,7 +352,7 @@ class App:
         ).grid(row=1, column=0, sticky=W, pady=(0, 10))
 
         file_row = ttk.Frame(main)
-        file_row.grid(row=2, column=0, sticky=(E, W), pady=4)
+        file_row.grid(row=2, column=0, sticky="ew", pady=4)
         file_row.columnconfigure(1, weight=1)
         ttk.Button(
             file_row, text="Choose .ifx files…", command=self.choose_files
@@ -364,18 +364,18 @@ class App:
         self.count_label.grid(row=0, column=1, sticky=W, padx=10)
 
         list_frame = ttk.Frame(main)
-        list_frame.grid(row=3, column=0, sticky=(N, S, E, W), pady=6)
+        list_frame.grid(row=3, column=0, sticky="nsew", pady=6)
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         from tkinter import Listbox
         self.listbox = Listbox(list_frame, activestyle="none", highlightthickness=0)
-        self.listbox.grid(row=0, column=0, sticky=(N, S, E, W))
+        self.listbox.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
-        sb.grid(row=0, column=1, sticky=(N, S))
+        sb.grid(row=0, column=1, sticky="ns")
         self.listbox.config(yscrollcommand=sb.set)
 
         fmt_frame = ttk.LabelFrame(main, text="Output format", padding=8)
-        fmt_frame.grid(row=4, column=0, sticky=(E, W), pady=(8, 4))
+        fmt_frame.grid(row=4, column=0, sticky="ew", pady=(8, 4))
         ttk.Radiobutton(
             fmt_frame,
             text="MB compatible — pivoted matrix only "
@@ -391,29 +391,29 @@ class App:
         ).grid(row=1, column=0, sticky=W)
 
         out_row = ttk.Frame(main)
-        out_row.grid(row=5, column=0, sticky=(E, W), pady=4)
+        out_row.grid(row=5, column=0, sticky="ew", pady=4)
         out_row.columnconfigure(1, weight=1)
         ttk.Label(out_row, text="Save to:").grid(row=0, column=0, sticky=W)
         ttk.Entry(out_row, textvariable=self.out_dir).grid(
-            row=0, column=1, sticky=(E, W), padx=6
+            row=0, column=1, sticky="ew", padx=6
         )
         ttk.Button(
             out_row, text="Browse…", command=self.choose_out_dir
         ).grid(row=0, column=2)
 
         self.name_row = ttk.Frame(main)
-        self.name_row.grid(row=6, column=0, sticky=(E, W), pady=4)
+        self.name_row.grid(row=6, column=0, sticky="ew", pady=4)
         self.name_row.columnconfigure(1, weight=1)
         ttk.Label(self.name_row, text="Output name:").grid(row=0, column=0, sticky=W)
         self.name_entry = ttk.Entry(self.name_row, textvariable=self.out_name)
-        self.name_entry.grid(row=0, column=1, sticky=(E, W), padx=6)
+        self.name_entry.grid(row=0, column=1, sticky="ew", padx=6)
         ttk.Label(self.name_row, text=".xlsx", foreground="#888").grid(
             row=0, column=2, sticky=W
         )
         self.name_row.grid_remove()
 
         self.progress = ttk.Progressbar(main, mode="determinate")
-        self.progress.grid(row=7, column=0, sticky=(E, W), pady=(10, 4))
+        self.progress.grid(row=7, column=0, sticky="ew", pady=(10, 4))
         self.status = StringVar(value="Ready.")
         ttk.Label(main, textvariable=self.status, foreground="#444").grid(
             row=8, column=0, sticky=W
@@ -557,7 +557,6 @@ class App:
 
 def main():
     root = Tk()
-    root.withdraw()  # hide until geometry + theme are applied (prevents flash)
     try:
         style = ttk.Style()
         if "aqua" in style.theme_names():
@@ -565,14 +564,19 @@ def main():
     except Exception:
         pass
     App(root)
-    root.deiconify()
-    # Force the window to the foreground on launch — without this, Tk
-    # apps started from Terminal often open behind the active window
-    # because the Python process isn't a proper macOS GUI app.
-    root.lift()
-    root.attributes("-topmost", True)
-    root.after_idle(root.attributes, "-topmost", False)
-    root.focus_force()
+
+    # Bring to front after the window is mapped. Doing this with after()
+    # (not after_idle) makes sure topmost is cleared *after* the window
+    # is actually visible — otherwise on slow first-launches the
+    # topmost-off can fire before the window appears and it stays
+    # behind the active app.
+    def bring_to_front():
+        root.lift()
+        root.attributes("-topmost", True)
+        root.after(200, lambda: root.attributes("-topmost", False))
+        root.focus_force()
+
+    root.after(50, bring_to_front)
     root.mainloop()
 
 

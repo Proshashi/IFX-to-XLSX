@@ -12,4 +12,6 @@ if ! python3 -c "import openpyxl" 2>/dev/null; then
     python3 -m pip install --user openpyxl
 fi
 
+export TK_SILENCE_DEPRECATION=1
+
 exec python3 ifx_to_xlsx_gui.py
