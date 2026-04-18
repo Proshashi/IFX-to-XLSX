@@ -64,7 +64,7 @@ Intensity values are preserved at **full precision** in both formats
 
 ---
 
-## Option 1 — Run the script directly (easiest, ~2 minutes)
+## Setup
 
 ### 1. Install Python (if you don't have it)
 
@@ -78,54 +78,28 @@ If it says "command not found" or prompts for developer tools, install
 Python from **https://www.python.org/downloads/macos/** (the official
 installer includes Tkinter, which the GUI needs).
 
-### 2. Install the one required library
+### 2. Launch with `start.sh`
+
+From the project folder:
 
 ```bash
-pip3 install openpyxl
+./start.sh
 ```
 
-### 3. Run it
+`start.sh` checks Python is available, installs `openpyxl` on first
+run if needed, and launches the GUI. No build step, no app bundle.
 
-Put `ifx_to_xlsx_gui.py` somewhere (e.g. Desktop), then:
+If macOS refuses to execute the script, make it executable once:
 
 ```bash
-python3 ~/Desktop/ifx_to_xlsx_gui.py
+chmod +x start.sh
 ```
 
 ### Optional: double-clickable launcher
 
-Make a file called `Convert_IFX.command` next to the script containing:
-
-```bash
-#!/bin/bash
-cd "$(dirname "$0")"
-python3 ifx_to_xlsx_gui.py
-```
-
-Then one-time in Terminal:
-
-```bash
-chmod +x ~/Desktop/Convert_IFX.command
-```
-
-Now you can double-click it from Finder.
-
----
-
-## Option 2 — Build a real macOS `.app` bundle
-
-If you want a proper Mac app to drop in `/Applications`:
-
-```bash
-pip3 install pyinstaller
-pyinstaller --windowed --name "IFX to Excel" ifx_to_xlsx_gui.py
-```
-
-The result is `dist/IFX to Excel.app`. Drag it to `/Applications`.
-
-> **First-launch gotcha:** unsigned apps are blocked by Gatekeeper.
-> Right-click the app → **Open** → confirm **Open** in the dialog.
-> You only need to do this once.
+`Convert_IFX.command` is included for users who prefer to launch from
+Finder by double-click. It does the same thing as `start.sh` minus the
+dependency check.
 
 ---
 

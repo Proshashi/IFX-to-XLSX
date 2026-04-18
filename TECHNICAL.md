@@ -10,7 +10,8 @@ For end-user instructions see [README.md](README.md).
 ```
 ifx-to-xlsx/
 ├── ifx_to_xlsx_gui.py     Single-file application (parser + writers + Tk GUI)
-├── Convert_IFX.command    Double-clickable launcher for macOS Finder
+├── start.sh               Terminal launcher — installs openpyxl on first run
+├── Convert_IFX.command    Double-clickable Finder launcher (no dep check)
 ├── README.md              End-user installation and usage guide
 └── TECHNICAL.md           This file
 ```
@@ -353,20 +354,25 @@ loop continues so one bad file does not abort the batch.
 
 ---
 
-## 10. Building a macOS `.app`
+## 10. Launchers
 
-```bash
-pip3 install pyinstaller
-pyinstaller --windowed --name "IFX to Excel" ifx_to_xlsx_gui.py
-```
+`start.sh` is the canonical entry point:
 
-Produces `dist/IFX to Excel.app`. `--windowed` suppresses the Terminal
-window on launch. The bundle is unsigned, so first launch needs
-right-click → Open to bypass Gatekeeper.
+1. `cd` to the script directory so relative paths resolve regardless
+   of where the user invoked it from.
+2. Verifies `python3` is on `PATH`; exits non-zero with a pointer to
+   python.org if missing.
+3. Probes for `openpyxl` via `python3 -c "import openpyxl"` and runs
+   `python3 -m pip install --user openpyxl` if that fails.
+4. `exec`s the GUI script so the shell process is replaced (no extra
+   process in the tree).
 
-There is no spec file checked in; PyInstaller's defaults are sufficient
-because the script imports nothing outside `openpyxl` + stdlib and
-loads no data files at runtime.
+`Convert_IFX.command` is the bare double-clickable variant — same `cd`
++ `python3 ifx_to_xlsx_gui.py`, no dependency check. Kept for users
+who prefer Finder launching.
+
+No PyInstaller `.app` bundle is built; the project deliberately stays
+script-based to avoid the signing / Gatekeeper friction.
 
 ---
 
