@@ -398,16 +398,16 @@ class App:
             out_row, text="Browse…", command=self.choose_out_dir
         ).grid(row=0, column=2)
 
-        name_row = ttk.Frame(main)
-        name_row.grid(row=6, column=0, sticky=(E, W), pady=4)
-        name_row.columnconfigure(1, weight=1)
-        ttk.Label(name_row, text="Output name:").grid(row=0, column=0, sticky=W)
-        self.name_entry = ttk.Entry(
-            name_row, textvariable=self.out_name, state="disabled"
-        )
+        self.name_row = ttk.Frame(main)
+        self.name_row.grid(row=6, column=0, sticky=(E, W), pady=4)
+        self.name_row.columnconfigure(1, weight=1)
+        ttk.Label(self.name_row, text="Output name:").grid(row=0, column=0, sticky=W)
+        self.name_entry = ttk.Entry(self.name_row, textvariable=self.out_name)
         self.name_entry.grid(row=0, column=1, sticky=(E, W), padx=6)
-        self.name_hint = ttk.Label(name_row, text=".xlsx", foreground="#888")
-        self.name_hint.grid(row=0, column=2, sticky=W)
+        ttk.Label(self.name_row, text=".xlsx", foreground="#888").grid(
+            row=0, column=2, sticky=W
+        )
+        self.name_row.grid_remove()
 
         self.progress = ttk.Progressbar(main, mode="determinate")
         self.progress.grid(row=7, column=0, sticky=(E, W), pady=(10, 4))
@@ -443,15 +443,11 @@ class App:
             text=f"{n} file{'s' if n != 1 else ''} selected" if n else "No files selected"
         )
         if n == 1:
-            self.name_entry.config(state="normal")
             self.out_name.set(self.files[0].stem)
-            self.name_hint.config(text=".xlsx", foreground="#888")
+            self.name_row.grid()
         else:
             self.out_name.set("")
-            self.name_entry.config(state="disabled")
-            self.name_hint.config(
-                text="(source filenames used for batch)", foreground="#888"
-            )
+            self.name_row.grid_remove()
 
     def choose_out_dir(self):
         d = filedialog.askdirectory(

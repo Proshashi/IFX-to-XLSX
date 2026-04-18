@@ -279,15 +279,17 @@ A single `ttk.Frame` with an 8-row grid:
 | 3   | Listbox of selected files (expandable)     |
 | 4   | `LabelFrame` with mode radio buttons       |
 | 5   | Output directory row (label / entry / Browse) |
-| 6   | Output filename row (label / entry / `.xlsx` hint) |
+| 6   | Output filename row (label / entry / `.xlsx` hint) — hidden unless 1 file selected |
 | 7   | Progress bar                               |
 | 8   | Status label                               |
 | 9   | Convert button                             |
 
-The output filename entry is enabled only when exactly one file is
-selected; `refresh_list` populates it with the source file's stem and
-toggles the entry/hint accordingly. For multi-file batches the source
-filenames are used and the entry is disabled.
+The output filename row is shown only when exactly one file is
+selected. `refresh_list` calls `self.name_row.grid()` /
+`self.name_row.grid_remove()` to toggle visibility (the row remembers
+its grid options across hide/show) and pre-fills the entry with the
+source file's stem. For multi-file batches the row is hidden and the
+source filenames are used directly.
 
 Resizing: row 3 and column 0 carry `weight=1`, so the file list
 expands to fill available space; everything else stays pinned.
